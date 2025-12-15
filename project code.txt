@@ -1,0 +1,265 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define FILE_NAME "hotel.dat"
+
+struct Booking {
+    int id;
+    char name[50];
+    char phone[20];
+    int room;       // 1-Single, 2-Double, 3-Deluxe
+    int days;
+    float amount;
+    int active;     // 1-active, 0-closed
+};
+
+// ------ Function Prototypes ------
+void addBooking();
+void viewBookings();
+void searchBooking();
+void cancelBooking();
+void checkoutBooking();
+float getRate(int);
+char* getRoomName(int);
+
+// ------ Main Program ------
+int main() {
+    int choice;
+
+    while(1) {   // MAIN MULTI-LOOP
+        printf("\n========== HOTEL BOOKING SYSTEM ==========\n");
+        printf("1. Add Booking\n");
+        printf("2. View All Bookings (File)\n");
+        printf("3. Search Booking\n");
+        printf("4. Checkout Booking\n");
+        printf("5. Cancel Booking\n");
+        printf("6. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch(choice) {
+            case 1: addBooking(); break;
+            case 2: viewBookings(); break;
+            case 3: searchBooking(); break;
+            case 4: checkoutBooking(); break;
+            case 5: cancelBooking(); break;
+            case 6: printf("\nThank you!\n"); exit(0);
+            default: printf("\nInvalid choice!\n");
+        }
+    }
+
+    return 0;
+}
+
+// ------ Room Price Function ------
+float getRate(int r) {
+    if(r == 1) return 1500;
+    if(r == 2) return 2500;
+    if(r == 3) return 4000;
+    return 0;
+}
+
+// ------ Room Name ------
+char* getRoomName(int r) {
+    if(r == 1) return "Single";
+    if(r == 2) return "Double";
+    if(r == 3) return "Deluxe";
+    return "Unknown";
+}
+
+// ------ Add Booking ------
+void addBooking() {
+    FILE *fp = fopen(FILE_NAME, "ab");
+    if(fp == NULL) {
+        printf("Error opening file!\n");
+        return;
+    }
+
+    struct Booking b;
+
+    // Auto ID generator
+    FILE *temp = fopen(FILE_NAME, "rb");
+    int last_id = 0;
+    if(temp != NULL) {
+        while(fread(&b, sizeof(b), 1, temp)) {
+            last_id = b.id;
+        }
+        fclose(temp);
+    }
+
+    b.id = last_id + 1;
+
+    printf("\nEnter customer name: ");
+    scanf(" %[^\n]", b.name);
+
+    printf("Enter phone number: ");
+    scanf("%s", b.phone);
+
+    printf("\nRoom Types:\n1. Single\n2. Double\n3. Deluxe\nChoose: ");
+    scanf("%d", &b.room);
+
+    printf("Enter number of days: ");
+    scanf("%d", &b.days);
+
+    float rate = getRate(b.room);
+    float total = rate * b.days;
+    float tax = total * 0.12;
+
+    b.amount = total + tax;
+    b.active = 1;
+
+    fwrite(&b, sizeof(b), 1, fp);
+    fclose(fp);
+
+    printf("\n✔ Booking Added Successfully!\n");
+    printf("Booking ID: %d\n", b.id);
+    printf("Total Amount: %.2f\n", b.amount);
+}
+
+// ------ View All Bookings ------
+void viewBookings() {
+    FILE *fp = fopen(FILE_NAME, "rb");
+
+    if(fp == NULL) {
+        printf("\nNo data found!\n");
+        return;
+    }
+
+    struct Booking b;
+
+    printf("\n--- All Bookings ---\n");
+    printf("ID  Name            Phone       Room     Days   Amount   Status\n");
+    printf("---------------------------------------------------------------\n");
+
+    while(fread(&b, sizeof(b), 1, fp)) {
+        printf("%-3d %-15s %-12s %-8s %-6d %-8.2f %s\n",
+               b.id, b.name, b.phone,
+               getRoomName(b.room), b.days,
+               b.amount,
+               b.active ? "Active" : "Closed");
+    }
+
+    fclose(fp);
+}
+
+// ------ Search Booking ------
+void searchBooking() {
+    FILE *fp = fopen(FILE_NAME, "rb");
+    if(fp == NULL) {
+        printf("\nNo data found!\n");
+        return;
+    }
+
+    int id, found = 0;
+    struct Booking b;
+
+    printf("\nEnter Booking ID to search: ");
+    scanf("%d", &id);
+
+    while(fread(&b, sizeof(b), 1, fp)) {
+        if(b.id == id) {
+            found = 1;
+
+            printf("\nBooking Found!\n");
+            printf("Name: %s\n", b.name);
+            printf("Phone: %s\n", b.phone);
+            printf("Room: %s\n", getRoomName(b.room));
+            printf("Days: %d\n", b.days);
+            printf("Amount: %.2f\n", b.amount);
+            printf("Status: %s\n", b.active ? "Active" : "Closed");
+            break;
+        }
+    }
+
+    if(!found)
+        printf("\nBooking ID not found!\n");
+
+    fclose(fp);
+}
+
+// ------ Cancel Booking ------
+void cancelBooking() {
+    FILE *fp = fopen(FILE_NAME, "rb+");
+    if(fp == NULL) {
+        printf("\nNo data found!\n");
+        return;
+    }
+
+    int id, found = 0;
+    struct Booking b;
+
+    printf("\nEnter Booking ID to cancel: ");
+    scanf("%d", &id);
+
+    while(fread(&b, sizeof(b), 1, fp)) {
+        if(b.id == id) {
+            found = 1;
+
+            if(b.active == 0) {
+                printf("\nBooking already closed!\n");
+                fclose(fp);
+                return;
+            }
+
+            b.active = 0;
+
+            fseek(fp, -sizeof(b), SEEK_CUR);
+            fwrite(&b, sizeof(b), 1, fp);
+
+            printf("\n✔ Booking Cancelled Successfully!\n");
+            break;
+        }
+    }
+
+    if(!found)
+        printf("\nBooking not found!\n");
+
+    fclose(fp);
+}
+
+// ------ Checkout ------
+void checkoutBooking() {
+    FILE *fp = fopen(FILE_NAME, "rb+");
+    if(fp == NULL) {
+        printf("\nNo data found!\n");
+        return;
+    }
+
+    int id, found = 0;
+    struct Booking b;
+
+    printf("\nEnter Booking ID to checkout: ");
+    scanf("%d", &id);
+
+    while(fread(&b, sizeof(b), 1, fp)) {
+        if(b.id == id) {
+            found = 1;
+
+            if(b.active == 0) {
+                printf("\nBooking already checked out!\n");
+                fclose(fp);
+                return;
+            }
+
+            printf("\n--- FINAL BILL ---\n");
+            printf("Name: %s\n", b.name);
+            printf("Phone: %s\n", b.phone);
+            printf("Room: %s\n", getRoomName(b.room));
+            printf("Days: %d\n", b.days);
+            printf("Total Amount: %.2f\n", b.amount);
+
+            b.active = 0;
+            fseek(fp, -sizeof(b), SEEK_CUR);
+            fwrite(&b, sizeof(b), 1, fp);
+
+            printf("\n✔ Checkout Completed!\n");
+            break;
+        }
+    }
+
+    if(!found)
+        printf("\nBooking not found!\n");
+
+    fclose(fp);
+}
